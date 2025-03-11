@@ -13,6 +13,11 @@
 # limitations under the License.
 
 services:
+  auth:
+    build:
+      context: ./auth
+    networks:
+      - pod
   envoy:
     image: envoyproxy/envoy:v1.31-latest
     hostname: envoy
@@ -22,6 +27,6 @@ services:
       - ./envoy.yaml:/etc/envoy/envoy.yaml
       - ./target/wasm32-wasip1/release:/etc/envoy/proxy-wasm-plugins
     networks:
-      - envoymesh
+      - pod
 networks:
-  envoymesh: {}
+  pod: {}

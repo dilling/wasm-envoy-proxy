@@ -1,14 +1,16 @@
 # Use the latest Python 3.12 image from Docker Hub
 FROM python:3.13-slim
 
-# Set the working directory
-WORKDIR /app
 
-# Copy the current directory contents into the container at /app
+# Install uv.
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+
+# Copy the application into the container.
 COPY . /app
 
-# Make port 80 available to the world outside this container
-EXPOSE 80
+# Install the application dependencies.
+WORKDIR /app
+RUN uv sync --frozen --no-cache
 
-# Run app.py when the container launches
-CMD ["python", "app.py"]
+# Run the application.
+CMD ["/app/.venv/bin/fastapi", "run", "app.py", "--port", "80", "--host", "0.0.0.0"]
