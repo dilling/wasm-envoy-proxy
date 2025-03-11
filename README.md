@@ -1,3 +1,12 @@
+## TODO
+
+- [ ] add "thrift" file
+- [ ] create main service based on thrift file
+- [ ] add "auth" service with token a
+- [ ] add thrift service to return thrift file
+- [ ] authenticate based on a JWT in the 
+
+
 ## Proxy-Wasm plugin example: HTTP body
 
 Proxy-Wasm plugin that redacts sensitive HTTP responses.
