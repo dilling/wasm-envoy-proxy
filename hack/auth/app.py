@@ -44,7 +44,3 @@ def generate_token():
         "token_type": "bearer",
         "expires_in": 3600
     })
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=80)

@@ -24,13 +24,18 @@ services:
     ports:
       - "10000:10000"
     volumes:
-      - ./envoy.yaml:/etc/envoy/envoy.yaml
-      - ./target/wasm32-wasip1/release:/etc/envoy/proxy-wasm-plugins
+      - ./envoy/envoy.yaml:/etc/envoy/envoy.yaml
+      - ../target/wasm32-wasip1/release:/etc/envoy/proxy-wasm-plugins
     networks:
       - pod
   service:
     build:
       context: ./service
+    networks:
+      - pod
+  client:
+    build:
+      context: ./client
     networks:
       - pod
 networks:

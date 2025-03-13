@@ -12,9 +12,10 @@ class PotatoServiceHandler(PotatoService.Iface):
 
 
 if __name__ == '__main__':
+    print('POTATO SERVICE')
     handler = PotatoServiceHandler()
     processor = PotatoService.Processor(handler)
-    transport = TSocket.TServerSocket(host='127.0.0.1', port=9090)
+    transport = TSocket.TServerSocket(port=9090)
     tfactory = TTransport.TBufferedTransportFactory()
     pfactory = TBinaryProtocol.TBinaryProtocolFactory()
 
@@ -22,4 +23,4 @@ if __name__ == '__main__':
 
     print('Starting the server...')
     server.serve()
-    print('done.')
+    # print('done.')
