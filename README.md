@@ -1,9 +1,11 @@
 ## TODO
 
-- [ ] add "thrift" file
-- [ ] create main service based on thrift file
-- [ ] add thrift service to return thrift file
+- [x] add "thrift" file
+- [x] create main service based on thrift file
+- [x] add simple client to call service
+- [ ] route the client / service traffic through Envoy
 - [ ] authenticate based on a JWT in the auth header
+- [ ] authorize based on a scope in the token
 - [x] create mock auth server with FastAPI
 
 ## Proxy-Wasm plugin example: HTTP body
