@@ -28,5 +28,10 @@ services:
       - ./target/wasm32-wasip1/release:/etc/envoy/proxy-wasm-plugins
     networks:
       - pod
+  service:
+    build:
+      context: ./service
+    networks:
+      - pod
 networks:
   pod: {}

@@ -2,9 +2,8 @@
 
 - [ ] add "thrift" file
 - [ ] create main service based on thrift file
-- [ ] add "auth" service with token a
 - [ ] add thrift service to return thrift file
-- [ ] authenticate based on a JWT in the 
+- [ ] authenticate based on a JWT in the auth header
 - [x] create mock auth server with FastAPI
 
 ## Proxy-Wasm plugin example: HTTP body
