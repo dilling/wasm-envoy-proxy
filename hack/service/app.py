@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     server = THttpServer.THttpServer(
         processor,
-        ('', 9090),
+        ('', 8080),
         pfactory
     )
 

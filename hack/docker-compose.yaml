@@ -17,7 +17,7 @@ services:
     build:
       context: ./auth
     networks:
-      - pod
+      - mesh
   envoy:
     image: envoyproxy/envoy:v1.31-latest
     hostname: envoy
@@ -28,6 +28,7 @@ services:
       - ../target/wasm32-wasip1/release:/etc/envoy/proxy-wasm-plugins
     networks:
       - pod
+      - mesh
   service:
     build:
       context: ./service
@@ -37,6 +38,7 @@ services:
     build:
       context: ./client
     networks:
-      - pod
+      - mesh
 networks:
   pod: {}
+  mesh: {}

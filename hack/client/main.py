@@ -6,7 +6,7 @@ from thrift.protocol import TBinaryProtocol
 import time
 
 def main():
-    transport = THttpClient.THttpClient('http://service:9090')
+    transport = THttpClient.THttpClient('http://envoy:10000')
     transport = TTransport.TBufferedTransport(transport)
     protocol = TBinaryProtocol.TBinaryProtocol(transport)
     client = PotatoService.Client(protocol)
