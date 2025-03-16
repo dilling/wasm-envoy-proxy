@@ -30,18 +30,18 @@ static_resources:
                     route:
                       cluster: service
               http_filters:
-                # - name: envoy.filters.http.wasm
-                #   typed_config:
-                #     "@type": type.googleapis.com/udpa.type.v1.TypedStruct
-                #     type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
-                #     value:
-                #       config:
-                #         name: "http_body"
-                #         vm_config:
-                #           runtime: "envoy.wasm.runtime.v8"
-                #           code:
-                #             local:
-                #               filename: "/etc/envoy/proxy-wasm-plugins/wasm_envoy_proxy.wasm"
+                - name: envoy.filters.http.wasm
+                  typed_config:
+                    "@type": type.googleapis.com/udpa.type.v1.TypedStruct
+                    type_url: type.googleapis.com/envoy.extensions.filters.http.wasm.v3.Wasm
+                    value:
+                      config:
+                        name: "http_body"
+                        vm_config:
+                          runtime: "envoy.wasm.runtime.v8"
+                          code:
+                            local:
+                              filename: "/etc/envoy/proxy-wasm-plugins/wasm_envoy_proxy.wasm"
                 - name: envoy.filters.http.router
                   typed_config:
                     "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -49,7 +49,7 @@ static_resources:
   - name: service
     connect_timeout: 0.25s
     type: STRICT_DNS
-    lb_policy: round_robin
+    lb_policy: ROUND_ROBIN
     load_assignment:
       cluster_name: service
       endpoints:
@@ -59,3 +59,16 @@ static_resources:
               socket_address:
                 address: service
                 port_value: 8080
+  - name: auth
+    connect_timeout: 5s
+    type: STRICT_DNS
+    lb_policy: ROUND_ROBIN
+    load_assignment:
+      cluster_name: auth
+      endpoints:
+        - lb_endpoints:
+            - endpoint:
+                address:
+                  socket_address:
+                    address: auth
+                    port_value: 8080
