@@ -21,6 +21,8 @@ use serde_json::from_slice;
 use proxy_wasm::{
     traits::{Context, HttpContext, RootContext}, types::{Action, ContextType, LogLevel}
 };
+use base64::prelude::*;
+
 
 const PUBLIC_KEY_REFRESH_INTERVAL: Duration = Duration::from_secs(3);
 
@@ -36,8 +38,6 @@ struct Jwks {
 
 #[derive(Debug, Clone, Deserialize)]
 struct Jwk {
-    kty: String,
-    kid: String,
     // use_: String,
     alg: String,
     n: String,
@@ -59,17 +59,18 @@ impl RootHandler {
             }
         };
 
-        let pubkey_comps = match jwks.keys.get(0) {
+        let pubkey_comps = match jwks.keys.iter().find(|key| key.alg == "RS256") {
             Some(key) => key,
             None => {
-                log::error!("No keys found in JWKS");
+                log::error!("No RS256 key found in JWKS");
                 return;
             }
         };
 
-        log::info!("Public Key: {:?}", pubkey_comps);
-
-        let key = RS256PublicKey::from_components(&pubkey_comps.n.as_bytes(), &pubkey_comps.e.as_bytes()).unwrap();
+        let n = BASE64_URL_SAFE_NO_PAD.decode(pubkey_comps.n.as_bytes()).unwrap();
+        let e = BASE64_URL_SAFE_NO_PAD.decode(pubkey_comps.e.as_bytes()).unwrap();
+    
+        let key = RS256PublicKey::from_components(&n, &e).unwrap();
 
         self.public_key = Some(key);
     }

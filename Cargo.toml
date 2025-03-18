@@ -9,6 +9,7 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
+base64 = "0.22.1"
 jwt-simple = "0.12.12"
 log = "0.4.26"
 proxy-wasm = "=0.2.1"
