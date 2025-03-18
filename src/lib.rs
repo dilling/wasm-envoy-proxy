@@ -71,7 +71,6 @@ impl RootHandler {
         let e = BASE64_URL_SAFE_NO_PAD.decode(pubkey_comps.e.as_bytes()).unwrap();
     
         let key = RS256PublicKey::from_components(&n, &e).unwrap();
-
         self.public_key = Some(key);
     }
 }
@@ -150,29 +149,14 @@ struct HttpHandler;
 impl Context for HttpHandler {}
 
 impl HttpContext for HttpHandler {
-    // fn on_http_request_headers(&mut self, _: usize, _: bool) -> Action {
-    //     log(LogLevel::Debug, "on_http_request_headers").unwrap();
-    //     Action::Continue
-    // }
-
-    fn on_http_request_headers(&mut self, _: usize, _: bool) -> Action {
+    fn on_http_request_headers(&mut self, _body_size: usize, _end_of_stream: bool) -> Action {
         log::info!("on_http_request_headers");
+        self.send_http_response(
+            401,
+            vec![("Powered-By", "proxy-wasm")],
+            Some(b"Access forbidden.\n"),
+        );
 
-        // let public_key = self.get_shared_data(PUBLIC_KEY_CACHE_KEY)
-        // match public_key {
-        //     Some(public_key) => {
-        //         let public_key = String::from_utf8(public_key).unwrap();
-        //         log::debug!("public key: {}", public_key);
-        //     }
-        //     None => {
-        //         log::debug!("public key not found");
-        //     }
-        // }
-        Action::Continue
-    }
-
-    fn on_http_request_body(&mut self, _body_size: usize, _end_of_stream: bool) -> Action {
-        log::info!("on_http_request_body");
         Action::Continue
     }
 }

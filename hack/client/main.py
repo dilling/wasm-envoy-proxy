@@ -18,18 +18,31 @@ def main():
             token = get_token()
             headers = {'Authorization': f'Bearer {token}'}
 
-            transport = THttpClient.THttpClient('http://envoy:10000')
-            transport.setCustomHeaders(headers)
-            transport = TTransport.TBufferedTransport(transport)
+            http_transport = THttpClient.THttpClient('http://envoy:10000')
+            http_transport.setCustomHeaders(headers)
+            transport = TTransport.TBufferedTransport(http_transport)
             protocol = TBinaryProtocol.TBinaryProtocol(transport)
             client = PotatoService.Client(protocol)
             
             transport.open()
-            spud = client.getSpud()
+            error = None
+            try:
+                spud = client.getSpud()
+            except Exception as e:
+                error = e
+            finally:
+                transport.close()
+
+            if http_transport.code == 401:
+                raise Exception("Unauthorized")
+            
+            if error is not None:
+                raise error
+
             print(spud)
-            transport.close()
+
         except Exception as e:
-            print(e)
+            print("The spud was a dud: " + str(e))
 
         time.sleep(5)
 
