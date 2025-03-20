@@ -4,17 +4,17 @@
 - [x] create main service based on thrift file
 - [x] add simple client to call service
 - [x] route the client / service traffic through Envoy
+- [x] create mock auth server with FastAPI
 - [x] authenticate based on a JWT in the auth header
   - [x] get the auth token in the client and add it as a header
   - [x] get the public key in the configure hook 
   - [x] validate the JWT based on the token 
 - [ ] authorize based on a scope in the token
   - [ ] parse the service name from the envoy config
-  - [ ] add the required scopes to the thrift annotation
+  - [x] add the required scopes to the thrift annotation
   - [ ] add the scope to the token in auth service
   - [ ] parse thrift & return the required scopes for service/endpoint from auth service
   - [ ] validate scopes in the envoy plugin
-- [x] create mock auth server with FastAPI
 
 ## Proxy-Wasm plugin example: HTTP body
 
