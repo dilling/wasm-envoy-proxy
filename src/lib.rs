@@ -13,10 +13,11 @@
 // limitations under the License.
 
 use std::time::Duration;
-use jwt_simple::prelude::RS256PublicKey;
+use jwt_simple::{claims::NoCustomClaims, prelude::{RS256PublicKey, RSAPublicKeyLike}};
 use log;
 use serde::Deserialize;
 use serde_json::from_slice;
+use std::error::Error;
 
 use proxy_wasm::{
     traits::{Context, HttpContext, RootContext}, types::{Action, ContextType, LogLevel}
@@ -25,10 +26,11 @@ use base64::prelude::*;
 
 
 const PUBLIC_KEY_REFRESH_INTERVAL: Duration = Duration::from_secs(3);
+const PUBLIC_KEY_CACHE_KEY: &str = "public_key";
 
 proxy_wasm::main! {{
     proxy_wasm::set_log_level(LogLevel::Trace);
-    proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> { Box::new(RootHandler::default()) });
+    proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> { Box::new(RootHandler) });
 }}
 
 #[derive(Debug, Clone, Deserialize)]
@@ -44,10 +46,7 @@ struct Jwk {
     e: String,
 }
 
-#[derive(Default)]
-struct RootHandler {
-    public_key: Option<RS256PublicKey>,
-}
+struct RootHandler;
 
 impl RootHandler {
     fn handle_get_token_res(&mut self, jwks: Vec<u8>) {
@@ -71,7 +70,10 @@ impl RootHandler {
         let e = BASE64_URL_SAFE_NO_PAD.decode(pubkey_comps.e.as_bytes()).unwrap();
     
         let key = RS256PublicKey::from_components(&n, &e).unwrap();
-        self.public_key = Some(key);
+
+
+        let data = key.to_der().unwrap();
+        self.set_shared_data(PUBLIC_KEY_CACHE_KEY, Some(&data), None).unwrap();
     }
 }
 
@@ -86,17 +88,17 @@ impl RootContext for RootHandler {
 
     fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
         self.set_tick_period(PUBLIC_KEY_REFRESH_INTERVAL);
-        log::info!("on_configure");
+        // log::info!("on_configure");
         true
     }
 
     fn on_tick(&mut self) {
-        match self.public_key {
-            Some(_) => {
-                log::info!("Public Key cached, skipping fetch");
+        match self.get_shared_data(PUBLIC_KEY_CACHE_KEY) {
+            (Some(_), _) => {
+                // log::info!("Public Key cached, skipping fetch");
                 return;
             },
-            None => log::info!("fetching public key"),
+            (None, _) => log::info!("fetching public key"),
         }
 
         let _ = self.dispatch_http_call(
@@ -124,7 +126,7 @@ impl Context for RootHandler {
         _num_trailers: usize,
     ) {
 
-        log::info!("on_http_call_response");
+        // log::info!("on_http_call_response");
 
         // Gather the response body of previously dispatched async HTTP call.
         let body = match self.get_http_call_response_body(0, body_size) {
@@ -136,27 +138,47 @@ impl Context for RootHandler {
             }
         };
 
-        log::info!("{}", String::from_utf8(body.clone()).unwrap());
+        // log::info!("{}", String::from_utf8(body.clone()).unwrap());
 
         self.handle_get_token_res(body);
-        
-        // self.set_shared_data(PUBLIC_KEY_CACHE_KEY, Some(body.as_slice()), None);
     }
 }
 
 struct HttpHandler;
 
+impl HttpHandler {
+    fn verify_auth(&self) -> Result<(), Box<dyn Error>> {
+        let auth_header = self.get_http_request_header("Authorization").ok_or("Missing Authorization Header")?;
+        let token = auth_header.split_whitespace().last().ok_or("Invalid Auth Header")?;
+
+        let data = self.get_shared_data(PUBLIC_KEY_CACHE_KEY).0.ok_or("Public key not found in cache")?;
+        let public_key = RS256PublicKey::from_der(&data)?;
+        public_key.verify_token::<NoCustomClaims>(token, None)?;
+
+        Ok(())
+    }
+    
+}
+
 impl Context for HttpHandler {}
 
 impl HttpContext for HttpHandler {
     fn on_http_request_headers(&mut self, _body_size: usize, _end_of_stream: bool) -> Action {
-        log::info!("on_http_request_headers");
-        self.send_http_response(
-            401,
-            vec![("Powered-By", "proxy-wasm")],
-            Some(b"Access forbidden.\n"),
-        );
+        // log::info!("on_http_request_headers");
 
-        Action::Continue
+        match self.verify_auth() {
+            Ok(_) => Action::Continue,
+            Err(e) => {
+                log::error!("Failed to verify token: {:?}", e);
+
+                self.send_http_response(
+                    401,
+                    vec![("Powered-By", "proxy-wasm")],
+                    Some(b"Access forbidden.\n"),
+                );
+
+                Action::Continue
+            }
+        }
     }
 }

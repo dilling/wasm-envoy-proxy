@@ -22,8 +22,8 @@ def get_public_key():
 @app.post("/token")
 def generate_token():
     expiration = datetime.now(timezone.utc) + timedelta(hours=1)
-    token = jwt.encode({"exp": expiration}, private_key)
- 
+    token = jwt.encode({"exp": expiration}, private_key, constants.Algorithms.RS256)
+     
     return JSONResponse(content={
         "access_token": token,
         "token_type": "bearer",

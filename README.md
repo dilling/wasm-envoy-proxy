@@ -4,10 +4,10 @@
 - [x] create main service based on thrift file
 - [x] add simple client to call service
 - [x] route the client / service traffic through Envoy
-- [ ] authenticate based on a JWT in the auth header
+- [x] authenticate based on a JWT in the auth header
   - [x] get the auth token in the client and add it as a header
   - [x] get the public key in the configure hook 
-  - [ ] validate the JWT based on the token 
+  - [x] validate the JWT based on the token 
 - [ ] authorize based on a scope in the token
 - [x] create mock auth server with FastAPI
 
