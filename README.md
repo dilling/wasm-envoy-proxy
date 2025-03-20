@@ -9,6 +9,11 @@
   - [x] get the public key in the configure hook 
   - [x] validate the JWT based on the token 
 - [ ] authorize based on a scope in the token
+  - [ ] parse the service name from the envoy config
+  - [ ] add the required scopes to the thrift annotation
+  - [ ] add the scope to the token in auth service
+  - [ ] parse thrift & return the required scopes for service/endpoint from auth service
+  - [ ] validate scopes in the envoy plugin
 - [x] create mock auth server with FastAPI
 
 ## Proxy-Wasm plugin example: HTTP body
