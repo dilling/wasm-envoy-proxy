@@ -12,10 +12,10 @@
 - [ ] authorize based on a scope in the token
   - [x] parse the service name from the envoy config
   - [x] add the required scopes to the thrift annotation
-  - [ ] add the scope to the token in auth service
+  - [x] add the scope to the token in auth service
   - [ ] parse thrift in auth service to get required scopes
   - [x] return the required scopes for service/endpoint from auth service
-  - [ ] validate scopes in the envoy plugin
+  - [x] validate scopes in the envoy plugin
 
 ## Proxy-Wasm plugin example: HTTP body
 

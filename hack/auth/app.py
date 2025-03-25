@@ -22,7 +22,8 @@ def get_public_key():
 @app.post("/token")
 def generate_token():
     expiration = datetime.now(timezone.utc) + timedelta(hours=1)
-    token = jwt.encode({"exp": expiration}, private_key, constants.Algorithms.RS256)
+    scopes = ["spud.read"]
+    token = jwt.encode({"exp": expiration, "scopes": scopes}, private_key, constants.Algorithms.RS256)
      
     return JSONResponse(content={
         "access_token": token,
@@ -32,4 +33,5 @@ def generate_token():
 
 @app.get("/scopes/{service_name}/{method_name}")
 def get_scopes(service_name: str, method_name: str):
-    return JSONResponse(content=["spud.read"])
+    scopes =  ["spud.read"]
+    return JSONResponse(content={ "scopes": scopes })
