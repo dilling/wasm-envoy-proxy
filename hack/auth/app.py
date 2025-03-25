@@ -29,3 +29,7 @@ def generate_token():
         "token_type": "bearer",
         "expires_in": 3600
     })
+
+@app.get("/scopes/{service_name}/{method_name}")
+def get_scopes(service_name: str, method_name: str):
+    return JSONResponse(content=["spud.read"])
