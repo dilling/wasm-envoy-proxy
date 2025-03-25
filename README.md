@@ -10,7 +10,7 @@
   - [x] get the public key in the configure hook 
   - [x] validate the JWT based on the token 
 - [ ] authorize based on a scope in the token
-  - [ ] parse the service name from the envoy config
+  - [x] parse the service name from the envoy config
   - [x] add the required scopes to the thrift annotation
   - [ ] add the scope to the token in auth service
   - [ ] parse thrift in auth service to get required scopes

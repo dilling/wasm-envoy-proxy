@@ -28,9 +28,17 @@ use base64::prelude::*;
 const PUBLIC_KEY_REFRESH_INTERVAL: Duration = Duration::from_secs(3);
 const PUBLIC_KEY_CACHE_KEY: &str = "public_key";
 
+#[derive(Deserialize, Debug, Default)]
+#[serde(default)]
+struct FilterConfig {
+    /// Name of the Thrift service for which the filter is being configured.
+    service_name: Option<String>,
+}
+
+
 proxy_wasm::main! {{
     proxy_wasm::set_log_level(LogLevel::Trace);
-    proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> { Box::new(RootHandler) });
+    proxy_wasm::set_root_context(|_| -> Box<dyn RootContext> { Box::new(RootHandler::default()) });
 }}
 
 #[derive(Debug, Clone, Deserialize)]
@@ -46,7 +54,10 @@ struct Jwk {
     e: String,
 }
 
-struct RootHandler;
+#[derive(Default)]
+struct RootHandler {
+    config: FilterConfig
+}
 
 impl RootHandler {
     fn handle_get_token_res(&mut self, jwks: Vec<u8>) {
@@ -87,9 +98,30 @@ impl RootContext for RootHandler {
     }
 
     fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
+        // Check for the mandatory filter configuration stanza.
+        let configuration: Vec<u8> = match self.get_plugin_configuration() {
+            Some(c) => c,
+            None => {
+                log::warn!("configuration missing");
+
+                return false;
+            }
+        };
+
+        match serde_json::from_slice::<FilterConfig>(configuration.as_ref()) {
+            Ok(config) => {
+                log::info!("configuring: {:?}", config);
+                self.config = config;
+            }
+            Err(e) => {
+                log::warn!("failed to parse configuration: {:?}", e);
+                return false;
+            }
+        }
+
         self.set_tick_period(PUBLIC_KEY_REFRESH_INTERVAL);
         // log::info!("on_configure");
-        true
+        return true
     }
 
     fn on_tick(&mut self) {
