@@ -243,8 +243,8 @@ impl HttpHandler {
         }
     }
 
-    fn handle_get_scopes_res(&self, maybe_scopes: Option<Vec<u8>>) {
-        match self.validate_auth(maybe_scopes) {
+    fn handle_get_scopes_res(&self, body: Option<Vec<u8>>) {
+        match self.validate_auth(body) {
             Ok(_) => self.resume_http_request(),
             Err(AuthError::Unauthenticated(message)) => {
                 log::warn!("Unauthenticated: {:?}", message);
@@ -271,15 +271,15 @@ impl HttpHandler {
     fn validate_auth(&self, body: Option<Vec<u8>>) -> Result<(), AuthError> {
         let claims = self.authenticate().map_err(|e| AuthError::Unauthenticated(e.to_string()))?;
         let required_scopes = self.parse_required_scopes(body).map_err(|e| AuthError::Unauthenticated(e.to_string()))?;
-        self.authorize(required_scopes, claims.custom.scopes).map_err(|e| AuthError::Unauthorized(e.to_string()))?;
+        self.authorize(required_scopes.scopes, claims.custom.scopes).map_err(|e| AuthError::Unauthorized(e.to_string()))?;
 
         Ok(())
     }
 
-    fn parse_required_scopes(&self, body: Option<Vec<u8>>) -> Result<Vec<String>, Box<dyn Error>> {
+    fn parse_required_scopes(&self, body: Option<Vec<u8>>) -> Result<GetScopesResponse, Box<dyn Error>> {
         let body = body.ok_or("Empty body from scopes response")?;
         let response: GetScopesResponse = from_slice(&body)?;
-        Ok(response.scopes)
+        Ok(response)
     }
 
     fn authorize(&self, required_scopes: Vec<String>, provided_scopes: Vec<String>) -> Result<(), Box<dyn Error>> {
