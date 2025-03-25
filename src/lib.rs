@@ -13,9 +13,9 @@
 // limitations under the License.
 
 use std::time::Duration;
-use jwt_simple::{claims::NoCustomClaims, prelude::{RS256PublicKey, RSAPublicKeyLike}};
+use jwt_simple::{claims::JWTClaims, prelude::{RS256PublicKey, RSAPublicKeyLike}};
 use log;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::from_slice;
 use std::error::Error;
 
@@ -27,8 +27,10 @@ use base64::prelude::*;
 
 const PUBLIC_KEY_REFRESH_INTERVAL: Duration = Duration::from_secs(3);
 const PUBLIC_KEY_CACHE_KEY: &str = "public_key";
+const POWERED_BY: &str = "wasm-envoy-proxy";
 
-#[derive(Deserialize, Debug, Default)]
+
+#[derive(Deserialize, Debug, Default, Clone)]
 #[serde(default)]
 struct FilterConfig {
     /// Name of the Thrift service for which the filter is being configured.
@@ -54,10 +56,37 @@ struct Jwk {
     e: String,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct RootHandler {
     config: FilterConfig
 }
+
+#[derive(Deserialize)]
+struct GetScopesResponse {
+    scopes: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CustomClaims {
+    scopes: Vec<String>,
+}
+
+#[derive(Debug)]
+enum AuthError {
+    Unauthenticated(String),
+    Unauthorized(String),
+}
+
+impl std::fmt::Display for AuthError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AuthError::Unauthenticated(msg) => write!(f, "Unauthenticated: {}", msg),
+            AuthError::Unauthorized(msg) => write!(f, "Unauthorized: {}", msg),
+        }
+    }
+}
+
+impl Error for AuthError {}
 
 impl RootHandler {
     fn handle_get_token_res(&mut self, jwks: Vec<u8>) {
@@ -90,7 +119,9 @@ impl RootHandler {
 
 impl RootContext for RootHandler {
     fn create_http_context(&self, _context_id: u32) -> Option<Box<dyn HttpContext>> {
-        Some(Box::new(HttpHandler {}))
+        Some(Box::new(HttpHandler { 
+            config: self.config.clone()
+        }))
     }
 
     fn get_type(&self) -> Option<ContextType> {
@@ -176,41 +207,118 @@ impl Context for RootHandler {
     }
 }
 
-struct HttpHandler;
+struct HttpHandler {
+    config: FilterConfig
+}
 
 impl HttpHandler {
-    fn verify_auth(&self) -> Result<(), Box<dyn Error>> {
+    fn dispatch_get_scopes(&self) -> () {
+        let service_name = self.config.service_name.as_ref().ok_or("Service name not found");
+
+        match service_name.map(|service| {
+            self.dispatch_http_call(
+                "auth",
+                vec![
+                    (":method", "GET"),
+                    (":path", &format!("/scopes/{}/test", service)),
+                    (":authority", "auth"),
+                ], 
+                None,
+                vec![],
+                Duration::from_secs(1)
+            ).map_err(|status| {
+                format!("Failed to dispatch get scopes call: status {:?}", status)
+            })
+        }) {
+            Ok(_) => (),
+            Err(e) => {
+                log::warn!("failed to get scopes: {:?}", e);
+
+                self.send_http_response(
+                    401,
+                    vec![("Powered-By", POWERED_BY)],
+                    Some(b"Access forbidden.\n"),
+                );
+            },
+        }
+    }
+
+    fn handle_get_scopes_res(&self, maybe_scopes: Option<Vec<u8>>) {
+        match self.validate_auth(maybe_scopes) {
+            Ok(_) => self.resume_http_request(),
+            Err(AuthError::Unauthenticated(message)) => {
+                log::warn!("Unauthenticated: {:?}", message);
+
+                self.send_http_response(
+                    401,
+                    vec![("Powered-By", POWERED_BY)],
+                    Some(b"Access forbidden.\n"),
+                );
+            },
+            Err(AuthError::Unauthorized(message)) => {
+                log::warn!("Unauthorized: {:?}", message);
+
+                self.send_http_response(
+                    403,
+                    vec![("Powered-By", POWERED_BY)],
+                    Some(b"Access forbidden.\n"),
+                );
+            },
+        }
+        
+    }
+
+    fn validate_auth(&self, body: Option<Vec<u8>>) -> Result<(), AuthError> {
+        let claims = self.authenticate().map_err(|e| AuthError::Unauthenticated(e.to_string()))?;
+        let required_scopes = self.parse_required_scopes(body).map_err(|e| AuthError::Unauthenticated(e.to_string()))?;
+        self.authorize(required_scopes, claims.custom.scopes).map_err(|e| AuthError::Unauthorized(e.to_string()))?;
+
+        Ok(())
+    }
+
+    fn parse_required_scopes(&self, body: Option<Vec<u8>>) -> Result<Vec<String>, Box<dyn Error>> {
+        let body = body.ok_or("Empty body from scopes response")?;
+        let response: GetScopesResponse = from_slice(&body)?;
+        Ok(response.scopes)
+    }
+
+    fn authorize(&self, required_scopes: Vec<String>, provided_scopes: Vec<String>) -> Result<(), Box<dyn Error>> {
+        match required_scopes.iter().all(|scope| provided_scopes.contains(scope)) {
+            true => Ok(()),
+            false => Err("Missing required scopes".into())
+        }
+    }
+
+    fn authenticate(&self) -> Result<JWTClaims<CustomClaims>, Box<dyn Error>> {
         let auth_header = self.get_http_request_header("Authorization").ok_or("Missing Authorization Header")?;
         let token = auth_header.split_whitespace().last().ok_or("Invalid Auth Header")?;
 
         let data = self.get_shared_data(PUBLIC_KEY_CACHE_KEY).0.ok_or("Public key not found in cache")?;
         let public_key = RS256PublicKey::from_der(&data)?;
-        public_key.verify_token::<NoCustomClaims>(token, None)?;
+        let claims = public_key.verify_token::<CustomClaims>(token, None)?;
 
-        Ok(())
+        Ok(claims)
     }
     
 }
 
-impl Context for HttpHandler {}
+impl Context for HttpHandler {
+    fn on_http_call_response(
+        &mut self,
+        _token_id: u32,
+        _num_headers: usize,
+        body_size: usize,
+        _num_trailers: usize,
+    ) {
+        let body = self.get_http_call_response_body(0, body_size);
+        self.handle_get_scopes_res(body);
+    }
+}
 
 impl HttpContext for HttpHandler {
     fn on_http_request_headers(&mut self, _body_size: usize, _end_of_stream: bool) -> Action {
-        // log::info!("on_http_request_headers");
+        self.dispatch_get_scopes();
 
-        match self.verify_auth() {
-            Ok(_) => Action::Continue,
-            Err(e) => {
-                log::error!("Failed to verify token: {:?}", e);
-
-                self.send_http_response(
-                    401,
-                    vec![("Powered-By", "proxy-wasm")],
-                    Some(b"Access forbidden.\n"),
-                );
-
-                Action::Continue
-            }
-        }
+        Action::Pause
     }
 }
