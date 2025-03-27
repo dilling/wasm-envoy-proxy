@@ -14,7 +14,7 @@
   - [x] add the required scopes to the thrift annotation
   - [x] add the scope to the token in auth service
   - [ ] parse the method from the thrift request body
-  - [ ] parse thrift in auth service to get required scopes
+  - [x] parse thrift in auth service to get required scopes
   - [x] return the required scopes for service/endpoint from auth service
   - [x] validate scopes in the envoy plugin
 

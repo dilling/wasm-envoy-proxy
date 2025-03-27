@@ -16,6 +16,10 @@ services:
   auth:
     build:
       context: ./auth
+    volumes:
+      - ./PotatoService.thrift:/app/PotatoService.thrift
+    environment:
+      - THRIFT_PATH=./PotatoService.thrift
     networks:
       - mesh
   envoy:

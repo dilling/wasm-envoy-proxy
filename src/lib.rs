@@ -63,7 +63,7 @@ struct RootHandler {
 
 #[derive(Deserialize)]
 struct GetScopesResponse {
-    scopes: Vec<String>,
+    scopes: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -220,7 +220,7 @@ impl HttpHandler {
                 "auth",
                 vec![
                     (":method", "GET"),
-                    (":path", &format!("/scopes/{}/test", service)),
+                    (":path", &format!("/scopes/{}/getSpud", service)),
                     (":authority", "auth"),
                 ], 
                 None,
@@ -270,8 +270,9 @@ impl HttpHandler {
 
     fn validate_auth(&self, body: Option<Vec<u8>>) -> Result<(), AuthError> {
         let claims = self.authenticate().map_err(|e| AuthError::Unauthenticated(e.to_string()))?;
-        let required_scopes = self.parse_required_scopes(body).map_err(|e| AuthError::Unauthenticated(e.to_string()))?;
-        self.authorize(required_scopes.scopes, claims.custom.scopes).map_err(|e| AuthError::Unauthorized(e.to_string()))?;
+        let parsed_scope_response = self.parse_required_scopes(body).map_err(|e| AuthError::Unauthenticated(e.to_string()))?;
+        let required_scopes = parsed_scope_response.scopes.split_whitespace().map(String::from).collect::<Vec<String>>();
+        self.authorize(required_scopes, claims.custom.scopes).map_err(|e| AuthError::Unauthorized(e.to_string()))?;
 
         Ok(())
     }

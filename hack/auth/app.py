@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 from jose import jwt, jwk, constants
 from datetime import datetime, timedelta, timezone
+from thriftParser import parse_thrift
+import os
 
 app = FastAPI()
  
@@ -33,5 +35,12 @@ def generate_token():
 
 @app.get("/scopes/{service_name}/{method_name}")
 def get_scopes(service_name: str, method_name: str):
-    scopes =  ["spud.read"]
+    file_path = os.path.join(os.path.dirname(__file__), os.getenv("THRIFT_PATH", "../PotatoService.thrift"))
+    thrift = parse_thrift(file_path)
+
+    try:
+        scopes = thrift["services"][service_name][method_name]["annotations"]["scope"]
+    except KeyError:
+        return JSONResponse(content={"detail": "Service method not found"}, status_code=404)
+    
     return JSONResponse(content={ "scopes": scopes })
