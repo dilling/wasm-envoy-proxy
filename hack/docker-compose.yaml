@@ -25,6 +25,7 @@ services:
   envoy:
     image: envoyproxy/envoy:v1.31-latest
     hostname: envoy
+    entrypoint: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml -l trace
     ports:
       - "10000:10000"
     volumes:
