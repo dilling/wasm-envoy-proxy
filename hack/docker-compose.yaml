@@ -23,9 +23,9 @@ services:
     networks:
       - mesh
   envoy:
-    image: envoyproxy/envoy:v1.31-latest
+    image: envoyproxy/envoy:v1.33-latest
     hostname: envoy
-    entrypoint: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml -l trace
+    # entrypoint: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml -l trace
     ports:
       - "10000:10000"
     volumes:

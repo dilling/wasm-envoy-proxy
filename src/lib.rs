@@ -395,18 +395,10 @@ impl HttpContext for HttpHandler {
         }
 
         let body = self.get_http_request_body(0, body_size);
-        if let Some(body) = body.clone() {
-            if let Ok(body_str) = String::from_utf8(body) {
-                log::info!("Request body: {}", body_str);
-            } else {
-                log::info!("Failed to convert body to string");
-            }
-        } else {
-            log::info!("Request body is empty");
-        }
+        log::info!("Body: {:?}", body);
 
         self.apply_thrift_auth(body);
         
-        Action::Pause
+        Action::Continue
     }
 }
