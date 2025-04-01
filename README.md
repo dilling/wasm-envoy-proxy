@@ -18,6 +18,10 @@
   - [x] return the required scopes for service/endpoint from auth service
   - [x] validate scopes in the envoy plugin
 
+### Stretch Goals
+- [] Read only partial body when parsing thrift method
+- [] Move public token fetch to a singleton service
+
 ## Proxy-Wasm plugin example: HTTP body
 
 Proxy-Wasm plugin that redacts sensitive HTTP responses.
