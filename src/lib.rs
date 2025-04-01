@@ -130,7 +130,7 @@ impl RootContext for RootHandler {
     fn create_http_context(&self, _context_id: u32) -> Option<Box<dyn HttpContext>> {
         Some(Box::new(HttpHandler {
             config: self.config.clone(),
-            access_token: None,
+            token_claims: None,
         }))
     }
 
@@ -220,7 +220,7 @@ impl Context for RootHandler {
 
 struct HttpHandler {
     config: FilterConfig,
-    access_token: Option<String>,
+    token_claims: Option<JWTClaims<CustomClaims>>,
 }
 
 impl HttpHandler {
@@ -293,8 +293,9 @@ impl HttpHandler {
 
     fn validate_auth(&self, body: Option<Vec<u8>>) -> Result<(), AuthError> {
         let claims = self
-            .authenticate()
-            .map_err(|e| AuthError::Unauthenticated(e.to_string()))?;
+            .token_claims
+            .as_ref()
+            .ok_or(AuthError::Unauthenticated("Missing token claims".to_string()))?;
 
         let parsed_scope_response = self
             .parse_required_scopes(body)
@@ -306,7 +307,7 @@ impl HttpHandler {
             .map(String::from)
             .collect::<Vec<String>>();
 
-        self.authorize(required_scopes, claims.custom.scopes)
+        self.authorize(required_scopes, &claims.custom.scopes)
             .map_err(|e| AuthError::Unauthorized(e.to_string()))?;
 
         Ok(())
@@ -324,7 +325,7 @@ impl HttpHandler {
     fn authorize(
         &self,
         required_scopes: Vec<String>,
-        provided_scopes: Vec<String>,
+        provided_scopes: &Vec<String>,
     ) -> Result<(), Box<dyn Error>> {
         match required_scopes
             .iter()
@@ -336,7 +337,14 @@ impl HttpHandler {
     }
 
     fn authenticate(&self) -> Result<JWTClaims<CustomClaims>, Box<dyn Error>> {
-        let token = self.access_token.as_ref().ok_or("Missing access token")?;
+        let auth_header = self
+            .get_http_request_header("Authorization")
+            .ok_or("Missing Authorization Header")?;
+
+        let token = auth_header
+            .split_whitespace()
+            .last()
+            .ok_or("Invalid Auth Header")?;
 
         let data = self
             .get_shared_data(PUBLIC_KEY_CACHE_KEY)
@@ -367,18 +375,6 @@ impl HttpHandler {
 
         Ok(method_name)
     }
-
-    fn get_access_token_from_header(&self) -> Option<String> {
-        let auth_header = self
-            .get_http_request_header("Authorization")?;
-
-        let token = auth_header
-            .split_whitespace()
-            .last()?
-            .to_string();
-
-        Some(token)
-    }
 }
 
 impl Context for HttpHandler {
@@ -397,8 +393,19 @@ impl Context for HttpHandler {
 
 impl HttpContext for HttpHandler {
     fn on_http_request_headers(&mut self, _num_headers: usize, _end_of_stream: bool) -> Action {
-        self.access_token = self.get_access_token_from_header();
+        match self.authenticate() {
+            Ok(claims) => self.token_claims = Some(claims),
+            Err(e) => {
+                log::warn!("Unauthenticated: {:?}", e);
 
+                self.send_http_response(
+                    401,
+                    vec![("Powered-By", POWERED_BY)],
+                    Some(b"Access forbidden.\n"),
+                );
+            }
+        }
+        
         Action::Continue
     }
 
