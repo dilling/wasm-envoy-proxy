@@ -130,6 +130,7 @@ impl RootContext for RootHandler {
     fn create_http_context(&self, _context_id: u32) -> Option<Box<dyn HttpContext>> {
         Some(Box::new(HttpHandler {
             config: self.config.clone(),
+            access_token: None,
         }))
     }
 
@@ -219,6 +220,7 @@ impl Context for RootHandler {
 
 struct HttpHandler {
     config: FilterConfig,
+    access_token: Option<String>,
 }
 
 impl HttpHandler {
@@ -334,18 +336,13 @@ impl HttpHandler {
     }
 
     fn authenticate(&self) -> Result<JWTClaims<CustomClaims>, Box<dyn Error>> {
-        let auth_header = self
-            .get_http_request_header("Authorization")
-            .ok_or("Missing Authorization Header")?;
-        let token = auth_header
-            .split_whitespace()
-            .last()
-            .ok_or("Invalid Auth Header")?;
+        let token = self.access_token.as_ref().ok_or("Missing access token")?;
 
         let data = self
             .get_shared_data(PUBLIC_KEY_CACHE_KEY)
             .0
             .ok_or("Public key not found in cache")?;
+
         let public_key = RS256PublicKey::from_der(&data)?;
         let claims = public_key.verify_token::<CustomClaims>(token, None)?;
 
@@ -370,6 +367,18 @@ impl HttpHandler {
 
         Ok(method_name)
     }
+
+    fn get_access_token_from_header(&self) -> Option<String> {
+        let auth_header = self
+            .get_http_request_header("Authorization")?;
+
+        let token = auth_header
+            .split_whitespace()
+            .last()?
+            .to_string();
+
+        Some(token)
+    }
 }
 
 impl Context for HttpHandler {
@@ -387,6 +396,12 @@ impl Context for HttpHandler {
 }
 
 impl HttpContext for HttpHandler {
+    fn on_http_request_headers(&mut self, _num_headers: usize, _end_of_stream: bool) -> Action {
+        self.access_token = self.get_access_token_from_header();
+
+        Action::Continue
+    }
+
     fn on_http_request_body(&mut self, body_size: usize, end_of_stream: bool) -> Action {
         if !end_of_stream {
             // Wait -- we'll be called again when the complete body is buffered
@@ -395,10 +410,8 @@ impl HttpContext for HttpHandler {
         }
 
         let body = self.get_http_request_body(0, body_size);
-        log::info!("Body: {:?}", body);
-
         self.apply_thrift_auth(body);
         
-        Action::Continue
+        Action::Pause
     }
 }
