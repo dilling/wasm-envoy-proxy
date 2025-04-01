@@ -38,23 +38,6 @@ This example can be run with [`docker compose`](https://docs.docker.com/compose/
 and has a matching Envoy configuration.
 
 ```sh
+$ cd /hack
 $ docker compose up
-```
-
-#### Response without secrets.
-
-Send HTTP request to `localhost:10000/hello`:
-
-```sh
-$ curl localhost:10000/hello
-Everyone may read this message.
-```
-
-#### Response with (redacted) secrets.
-
-Send HTTP request to `localhost:10000/secret`:
-
-```sh
-$ curl localhost:10000/secret
-Original message body (50 bytes) redacted.
 ```
