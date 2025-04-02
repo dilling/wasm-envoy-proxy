@@ -26,7 +26,7 @@
 
 ## Running the plugin
 
-If this your first time working with Rust, follow the install instructions at [Setup.md](./SETUP.md)
+If this your first time working with this repo, follow the install instructions at [Setup.md](./SETUP.md)
 
 ### Building
 
