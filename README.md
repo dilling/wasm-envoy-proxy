@@ -1,3 +1,5 @@
+# Envoy Plugin for Thrift Annotation based auth
+
 ## TODO
 
 - [x] add "thrift" file
@@ -9,7 +11,7 @@
   - [x] get the auth token in the client and add it as a header
   - [x] get the public key in the configure hook 
   - [x] validate the JWT based on the token 
-- [ ] authorize based on a scope in the token
+- [x] authorize based on a scope in the token
   - [x] parse the service name from the envoy config
   - [x] add the required scopes to the thrift annotation
   - [x] add the scope to the token in auth service
@@ -19,12 +21,12 @@
   - [x] validate scopes in the envoy plugin
 
 ### Stretch Goals
-- [] Read only partial body when parsing thrift method
-- [] Move public token fetch to a singleton service
+- [ ] Read only partial body when parsing thrift method
+- [ ] Move public token fetch to a singleton service
 
-## Proxy-Wasm plugin example: HTTP body
+## Running the plugin
 
-Proxy-Wasm plugin that redacts sensitive HTTP responses.
+If this your first time working with Rust, follow the install instructions at [Setup.md](./SETUP.md)
 
 ### Building
 
