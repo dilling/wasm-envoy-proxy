@@ -1121,7 +1121,6 @@ name = "wasm-envoy-proxy"
 version = "0.1.0"
 dependencies = [
  "base64",
- "byteorder",
  "jwt-simple",
  "log",
  "proxy-wasm",

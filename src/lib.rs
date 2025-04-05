@@ -1,4 +1,3 @@
-use byteorder::{BigEndian, ReadBytesExt};
 use jwt_simple::{
     claims::JWTClaims,
     prelude::{RS256PublicKey, RSAPublicKeyLike},
@@ -7,10 +6,7 @@ use log;
 use serde::{Deserialize, Serialize};
 use serde_json::from_slice;
 use std::error::Error;
-use std::{
-    io::{Cursor, Read},
-    time::Duration,
-};
+use std::time::Duration;
 
 use base64::prelude::*;
 use proxy_wasm::{
@@ -210,8 +206,8 @@ struct HttpHandler {
 }
 
 impl HttpHandler {
-    fn apply_thrift_auth(&self, maybe_body: Option<Vec<u8>>) -> () { 
-        match self.dispatch_get_scopes(maybe_body) {
+    fn apply_thrift_auth(&self, method_name: String) -> () { 
+        match self.dispatch_get_scopes(method_name) {
             Ok(_) => (),
             Err(e) => {
                 log::warn!("failed to get scopes: {:?}", e);
@@ -226,16 +222,12 @@ impl HttpHandler {
 
     }
 
-    fn dispatch_get_scopes(&self, maybe_body: Option<Vec<u8>>) -> Result<(), Box<dyn Error>> {
+    fn dispatch_get_scopes(&self, method_name: String) -> Result<(), Box<dyn Error>> {
         let service_name = self
             .config
             .service_name
             .as_ref()
             .ok_or("Service name not found")?;
-
-        let body = maybe_body.ok_or("Empty body")?;
-        let method_name = HttpHandler::parse_thrift_method(&body)
-            .map_err(|e| format!("unable to get thrift method name from body: {}", e))?;
 
         self.dispatch_http_call(
             "auth",
@@ -342,25 +334,6 @@ impl HttpHandler {
 
         Ok(claims)
     }
-
-    fn parse_thrift_method(body: &[u8]) -> Result<String, Box<dyn std::error::Error>> {
-        let mut cursor = Cursor::new(body);
-
-        // Read the message type (4 bytes, skip for now)
-        let _message_type = cursor.read_i32::<BigEndian>()?;
-
-        // Read the method name length (4 bytes)
-        let method_name_length = cursor.read_i32::<BigEndian>()? as usize;
-
-        // Read the method name (variable length)
-        let mut method_name_bytes = vec![0; method_name_length];
-        cursor.read_exact(&mut method_name_bytes)?;
-
-        // Convert the method name to a string
-        let method_name = String::from_utf8(method_name_bytes)?;
-
-        Ok(method_name)
-    }
 }
 
 impl Context for HttpHandler {
@@ -394,16 +367,21 @@ impl HttpContext for HttpHandler {
         Action::Continue
     }
 
-    fn on_http_request_body(&mut self, body_size: usize, end_of_stream: bool) -> Action {
-        if !end_of_stream {
-            // Wait -- we'll be called again when the complete body is buffered
-            // at the host side.
-            return Action::Pause;
-        }
 
-        let body = self.get_http_request_body(0, body_size);
-        self.apply_thrift_auth(body);
-        
+    fn on_http_request_body(&mut self, _body_size: usize, _end_of_stream: bool) -> Action {
+        let method_length = match self.get_http_request_body(4, 4) {
+            Some(bytes) if bytes.len() == 4 => usize::from_be_bytes(bytes.try_into().expect("Expected 4 bytes")),
+            _ => return Action::Continue
+        };
+
+
+        let method_name = match self.get_http_request_body(8, method_length) {
+            Some(bytes) if bytes.len() == method_length  => String::from_utf8(bytes).unwrap(),
+            _ => return Action::Continue
+        };
+
+        self.apply_thrift_auth(method_name);
+
         Action::Pause
     }
 }
