@@ -371,7 +371,6 @@ impl Context for HttpHandler {
         body_size: usize,
         _num_trailers: usize,
     ) {
-        log::info!("on_http_call_response");
         let body = self.get_http_call_response_body(0, body_size);
         self.handle_get_scopes_res(body);
     }

@@ -11,7 +11,6 @@ class PotatoServiceHandler(PotatoService.Iface):
 if __name__ == '__main__':
     handler = PotatoServiceHandler()
     processor = PotatoService.Processor(handler)
-    tfactory = TTransport.TBufferedTransportFactory()
     pfactory = TBinaryProtocol.TBinaryProtocolFactory()
 
     server = THttpServer.THttpServer(
