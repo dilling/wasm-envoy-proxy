@@ -324,12 +324,15 @@ impl HttpHandler {
         required_scopes: Vec<String>,
         provided_scopes: &Vec<String>,
     ) -> Result<(), Box<dyn Error>> {
-        match required_scopes
+        let missing_scopes: Vec<_> = required_scopes
             .iter()
-            .all(|scope| provided_scopes.contains(scope))
-        {
-            true => Ok(()),
-            false => Err("Missing required scopes".into()),
+            .filter(|scope| !provided_scopes.contains(scope))
+            .collect();
+
+        if missing_scopes.is_empty() {
+            Ok(())
+        } else {
+            Err(format!("Missing required scopes: {:?}", missing_scopes).into())
         }
     }
 
