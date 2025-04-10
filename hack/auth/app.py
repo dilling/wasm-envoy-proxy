@@ -39,7 +39,7 @@ def get_scopes(service_name: str, method_name: str):
     thrift = parse_thrift(file_path)
 
     try:
-        scopes = thrift["services"][service_name][method_name]["annotations"]["scope"]
+        scopes = thrift["services"][service_name][method_name]["annotations"].get("scope", "")
     except KeyError:
         return JSONResponse(content={"detail": "Service method not found"}, status_code=404)
     
