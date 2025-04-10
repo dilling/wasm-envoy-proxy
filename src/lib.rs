@@ -113,6 +113,7 @@ impl RootContext for RootHandler {
         Some(Box::new(HttpHandler {
             config: self.config.clone(),
             token_claims: None,
+            get_scopes_dispatched: false,
         }))
     }
 
@@ -203,10 +204,11 @@ impl Context for RootHandler {
 struct HttpHandler {
     config: FilterConfig,
     token_claims: Option<JWTClaims<CustomClaims>>,
+    get_scopes_dispatched: bool,
 }
 
 impl HttpHandler {
-    fn apply_thrift_auth(&self, method_name: String) -> () { 
+    fn apply_thrift_auth(&mut self, method_name: String) -> () { 
         match self.dispatch_get_scopes(method_name) {
             Ok(_) => (),
             Err(e) => {
@@ -222,7 +224,21 @@ impl HttpHandler {
 
     }
 
-    fn dispatch_get_scopes(&self, method_name: String) -> Result<(), Box<dyn Error>> {
+    fn get_thrift_method_from_body(&self) -> Option<String> {
+        let method_length = match self.get_http_request_body(4, 4) {
+            Some(bytes) if bytes.len() == 4 => usize::from_be_bytes(bytes.try_into().expect("Expected 4 bytes")),
+            _ => return None
+        };
+
+        let method_name = match self.get_http_request_body(8, method_length) {
+            Some(bytes) if bytes.len() == method_length  => String::from_utf8(bytes).unwrap(),
+            _ => return None
+        };
+
+        Some(method_name)
+    }
+
+    fn dispatch_get_scopes(&mut self, method_name: String) -> Result<(), Box<dyn Error>> {
         let service_name = self
             .config
             .service_name
@@ -241,6 +257,9 @@ impl HttpHandler {
             Duration::from_secs(1),
         )
         .map_err(|status| format!("Failed to dispatch get scopes call: status {:?}", status))?;
+
+
+        self.get_scopes_dispatched = true;
 
         Ok(())
     }
@@ -363,24 +382,29 @@ impl HttpContext for HttpHandler {
                 );
             }
         }
-        
+
         Action::Continue
     }
 
+    fn on_http_request_body(&mut self, _body_size: usize, end_of_stream: bool) -> Action {
+        // pause if we've already dispatched a call
+        if self.get_scopes_dispatched {
+            return Action::Pause;
+        }
+        if let Some(method_name) = self.get_thrift_method_from_body() {
+            self.apply_thrift_auth(method_name);
+            return Action::Pause;
+        }
+        
+        if end_of_stream {
+            log::info!("Reached end of stream without method name");
 
-    fn on_http_request_body(&mut self, _body_size: usize, _end_of_stream: bool) -> Action {
-        let method_length = match self.get_http_request_body(4, 4) {
-            Some(bytes) if bytes.len() == 4 => usize::from_be_bytes(bytes.try_into().expect("Expected 4 bytes")),
-            _ => return Action::Continue
+            self.send_http_response(
+                401,
+                vec![("Powered-By", POWERED_BY)],
+                Some(b"Access forbidden.\n"),
+            );
         };
-
-
-        let method_name = match self.get_http_request_body(8, method_length) {
-            Some(bytes) if bytes.len() == method_length  => String::from_utf8(bytes).unwrap(),
-            _ => return Action::Continue
-        };
-
-        self.apply_thrift_auth(method_name);
 
         Action::Pause
     }

@@ -21,7 +21,7 @@
   - [x] validate scopes in the envoy plugin
 
 ### Stretch Goals
-- [ ] Read only partial body when parsing thrift method
+- [x] Read only partial body when parsing thrift method
 - [ ] Move public token fetch to a singleton service
 
 ## Running the plugin
