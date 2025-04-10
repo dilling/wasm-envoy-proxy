@@ -1,8 +1,9 @@
 from gen.potatoService import PotatoService
 
-from thrift.transport import TTransport
 from thrift.protocol import TBinaryProtocol
 from thrift.server import THttpServer
+
+from util import ProcessorWithCatch
 
 class PotatoServiceHandler(PotatoService.Iface):
     def getSpud(self):
@@ -14,7 +15,7 @@ if __name__ == '__main__':
     pfactory = TBinaryProtocol.TBinaryProtocolFactory()
 
     server = THttpServer.THttpServer(
-        processor,
+        ProcessorWithCatch(processor),
         ('', 8080),
         pfactory
     )

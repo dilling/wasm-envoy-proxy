@@ -34,7 +34,10 @@ def main():
                 transport.close()
 
             if http_transport.code == 401:
-                raise Exception("Unauthorized")
+                raise Exception("401 Unauthorized")
+            
+            if http_transport.code == 403:
+                raise Exception("403 Forbidden")
             
             if error is not None:
                 raise error
