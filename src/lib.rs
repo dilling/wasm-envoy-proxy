@@ -37,7 +37,6 @@ struct Jwks {
 
 #[derive(Debug, Clone, Deserialize)]
 struct Jwk {
-    // use_: String,
     alg: String,
     n: String,
     e: String,
@@ -75,39 +74,6 @@ impl std::fmt::Display for AuthError {
 
 impl Error for AuthError {}
 
-impl RootHandler {
-    fn handle_get_token_res(&mut self, jwks: Vec<u8>) {
-        let jwks: Jwks = match from_slice(&jwks) {
-            Ok(jwks) => jwks,
-            Err(e) => {
-                log::error!("Failed to parse JWKS: {:?}", e);
-                return;
-            }
-        };
-
-        let pubkey_comps = match jwks.keys.iter().find(|key| key.alg == "RS256") {
-            Some(key) => key,
-            None => {
-                log::error!("No RS256 key found in JWKS");
-                return;
-            }
-        };
-
-        let n = BASE64_URL_SAFE_NO_PAD
-            .decode(pubkey_comps.n.as_bytes())
-            .unwrap();
-        let e = BASE64_URL_SAFE_NO_PAD
-            .decode(pubkey_comps.e.as_bytes())
-            .unwrap();
-
-        let key = RS256PublicKey::from_components(&n, &e).unwrap();
-
-        let data = key.to_der().unwrap();
-        self.set_shared_data(PUBLIC_KEY_CACHE_KEY, Some(&data), None)
-            .unwrap();
-    }
-}
-
 impl RootContext for RootHandler {
     fn create_http_context(&self, _context_id: u32) -> Option<Box<dyn HttpContext>> {
         Some(Box::new(HttpHandler {
@@ -144,14 +110,12 @@ impl RootContext for RootHandler {
         }
 
         self.set_tick_period(PUBLIC_KEY_REFRESH_INTERVAL);
-        // log::info!("on_configure");
         return true;
     }
 
     fn on_tick(&mut self) {
         match self.get_shared_data(PUBLIC_KEY_CACHE_KEY) {
             (Some(_), _) => {
-                // log::info!("Public Key cached, skipping fetch");
                 return;
             }
             (None, _) => log::info!("fetching public key"),
@@ -175,6 +139,7 @@ impl RootContext for RootHandler {
     }
 }
 
+
 impl Context for RootHandler {
     fn on_http_call_response(
         &mut self,
@@ -183,8 +148,6 @@ impl Context for RootHandler {
         body_size: usize,
         _num_trailers: usize,
     ) {
-        // log::info!("on_http_call_response");
-
         // Gather the response body of previously dispatched async HTTP call.
         let body = match self.get_http_call_response_body(0, body_size) {
             Some(body) => body,
@@ -195,9 +158,40 @@ impl Context for RootHandler {
             }
         };
 
-        // log::info!("{}", String::from_utf8(body.clone()).unwrap());
-
         self.handle_get_token_res(body);
+    }
+}
+
+impl RootHandler {
+    fn handle_get_token_res(&mut self, jwks: Vec<u8>) {
+        let jwks: Jwks = match from_slice(&jwks) {
+            Ok(jwks) => jwks,
+            Err(e) => {
+                log::error!("Failed to parse JWKS: {:?}", e);
+                return;
+            }
+        };
+
+        let pubkey_comps = match jwks.keys.iter().find(|key| key.alg == "RS256") {
+            Some(key) => key,
+            None => {
+                log::error!("No RS256 key found in JWKS");
+                return;
+            }
+        };
+
+        let n = BASE64_URL_SAFE_NO_PAD
+            .decode(pubkey_comps.n.as_bytes())
+            .unwrap();
+        let e = BASE64_URL_SAFE_NO_PAD
+            .decode(pubkey_comps.e.as_bytes())
+            .unwrap();
+
+        let key = RS256PublicKey::from_components(&n, &e).unwrap();
+
+        let data = key.to_der().unwrap();
+        self.set_shared_data(PUBLIC_KEY_CACHE_KEY, Some(&data), None)
+            .unwrap();
     }
 }
 
@@ -205,6 +199,61 @@ struct HttpHandler {
     config: FilterConfig,
     token_claims: Option<JWTClaims<CustomClaims>>,
     get_scopes_dispatched: bool,
+}
+
+impl HttpContext for HttpHandler {
+    fn on_http_request_headers(&mut self, _num_headers: usize, _end_of_stream: bool) -> Action {
+        match self.authenticate() {
+            Ok(claims) => self.token_claims = Some(claims),
+            Err(e) => {
+                log::warn!("Unauthenticated: {:?}", e);
+
+                self.send_http_response(
+                    401,
+                    vec![("Powered-By", POWERED_BY)],
+                    Some(b"Access forbidden.\n"),
+                );
+            }
+        }
+
+        Action::Continue
+    }
+
+    fn on_http_request_body(&mut self, _body_size: usize, end_of_stream: bool) -> Action {
+        // pause if we've already dispatched a call
+        if self.get_scopes_dispatched {
+            return Action::Pause;
+        }
+        if let Some(method_name) = self.get_thrift_method_from_body() {
+            self.apply_thrift_auth(method_name);
+            return Action::Pause;
+        }
+        
+        if end_of_stream {
+            log::info!("Reached end of stream without method name");
+
+            self.send_http_response(
+                401,
+                vec![("Powered-By", POWERED_BY)],
+                Some(b"Access forbidden.\n"),
+            );
+        };
+
+        Action::Pause
+    }
+}
+
+impl Context for HttpHandler {
+    fn on_http_call_response(
+        &mut self,
+        _token_id: u32,
+        _num_headers: usize,
+        body_size: usize,
+        _num_trailers: usize,
+    ) {
+        let body = self.get_http_call_response_body(0, body_size);
+        self.handle_get_scopes_res(body);
+    }
 }
 
 impl HttpHandler {
@@ -355,60 +404,5 @@ impl HttpHandler {
         let claims = public_key.verify_token::<CustomClaims>(token, None)?;
 
         Ok(claims)
-    }
-}
-
-impl Context for HttpHandler {
-    fn on_http_call_response(
-        &mut self,
-        _token_id: u32,
-        _num_headers: usize,
-        body_size: usize,
-        _num_trailers: usize,
-    ) {
-        let body = self.get_http_call_response_body(0, body_size);
-        self.handle_get_scopes_res(body);
-    }
-}
-
-impl HttpContext for HttpHandler {
-    fn on_http_request_headers(&mut self, _num_headers: usize, _end_of_stream: bool) -> Action {
-        match self.authenticate() {
-            Ok(claims) => self.token_claims = Some(claims),
-            Err(e) => {
-                log::warn!("Unauthenticated: {:?}", e);
-
-                self.send_http_response(
-                    401,
-                    vec![("Powered-By", POWERED_BY)],
-                    Some(b"Access forbidden.\n"),
-                );
-            }
-        }
-
-        Action::Continue
-    }
-
-    fn on_http_request_body(&mut self, _body_size: usize, end_of_stream: bool) -> Action {
-        // pause if we've already dispatched a call
-        if self.get_scopes_dispatched {
-            return Action::Pause;
-        }
-        if let Some(method_name) = self.get_thrift_method_from_body() {
-            self.apply_thrift_auth(method_name);
-            return Action::Pause;
-        }
-        
-        if end_of_stream {
-            log::info!("Reached end of stream without method name");
-
-            self.send_http_response(
-                401,
-                vec![("Powered-By", POWERED_BY)],
-                Some(b"Access forbidden.\n"),
-            );
-        };
-
-        Action::Pause
     }
 }
