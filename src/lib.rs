@@ -88,7 +88,6 @@ impl RootContext for RootHandler {
     }
 
     fn on_configure(&mut self, _plugin_configuration_size: usize) -> bool {
-        // Check for the mandatory filter configuration stanza.
         let configuration: Vec<u8> = match self.get_plugin_configuration() {
             Some(c) => c,
             None => {
