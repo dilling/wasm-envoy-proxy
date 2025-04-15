@@ -8,9 +8,6 @@ def parse_thrift(file_path):
     # Remove comments starting with "//"
     content = re.sub(r'//.*$', '', content, flags=re.MULTILINE)
 
-    # Remove commented lines
-    content = re.sub(r'^\s*#.*$', '', content, flags=re.MULTILINE)
-
     # Extract namespace
     namespace_match = re.search(r'namespace\s+\w+\s+(\w+)', content)
     namespace = namespace_match.group(1) if namespace_match else None
